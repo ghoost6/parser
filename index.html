@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"
+        integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery.maskedinput@1.4.1/src/jquery.maskedinput.min.js"
+        type="text/javascript"></script>
+        <!-- <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet"> -->
+
+    <title>Тест проверка гиббд</title>
+</head>
+<body>
+
+    <div id="widget_gibbd">
+        <h2>Проверка автомобиля по VIN ГИБДД</h2>
+	    <form id="formAuto">
+            <div>
+	            <input id="vin" type="text" name="vin" placeholder="VIN (17 СИМВОЛОВ)" required>
+                <!-- <input type="hidden" name="action" value="driver"> -->
+            </div>
+            <div id="widget_groupButton_vin">
+                <input id="clearForm" type="reset" value="Очистить поля" />
+                <input id="sendForm_history" type="submit" name="history"
+                    value="Запросить сведения о периодах регистрации">
+                <input id="sendForm_dtp" type="submit" name="dtp" value="Запросить сведения о ДТП">
+                <input id="sendForm_wanted" type="submit" name="wanted" value="Запросить сведения о розыске">
+                <input id="sendForm_restrict" type="submit" name="restrict"
+                    value="Запросить сведения об ограничениях">
+                <input id="sendForm_diagnostic" type="submit" name="diagnostic" value="Запросить сведения о ДК">
+            </div>
+            <div id="loadingDiv">
+                <div>Выполняется поиск в базе данных ГИББД ... </div>
+                <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
+            </div>
+	    </form>
+
+        <div id="results"></div>
+        <div id="res_message"></div>
+        <div id="log"></div>
+    </div>
+    
+    <!-- <div id="widget_gibbd">
+        <h2>Проверка автомобиля по VIN ГИБДД</h2>
+	    <form id="formAuto">
+            <div id="alienFalse">
+
+            </div>
+            <div id="alienTrue">
+
+            </div>
+            <div id="widget_groupButton">
+                <div id="changeAlien">Иностранный госномер</div>
+                <input id="clearForm" type="reset" value="Очистить поля" />
+                <input id="sendForm" type="submit" name="send" value="Запрос о водителе в ГИББД (30~ сек)">
+            </div>
+            <div id="loadingDiv">
+                <div>Выполняется поиск в базе данных ГИББД ... </div>
+                <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
+            </div>
+	    </form>
+
+        <div id="results">
+            <div>Подразделение: <span id="res_division"></span></div>
+            <div>Дата рождения владельца: <span id="res_bdate"></span></div>
+            <div>Дата выдачи: <span id="res_date"></span></div>
+            <div>Срок действия: <span id="res_srok"></span></div>
+            <div>Категории ТС: <span id="res_cat"></span></div>
+        </div>
+        <div id="res_message"></div>
+        <div id="log"></div>
+    </div> -->
+
+<script>
+
+$(document).ready(function(){
+
+    $.fn.setCursorPosition = function(pos) {
+    if ($(this).get(0).setSelectionRange) {
+    $(this).get(0).setSelectionRange(pos, pos);
+    } else if ($(this).get(0).createTextRange) {
+    var range = $(this).get(0).createTextRange();
+    range.collapse(true);
+    range.moveEnd('character', pos);
+    range.moveStart('character', pos);
+    range.select();
+    }
+    };
+
+    $("#num").click(function(){
+    $(this).setCursorPosition(0);
+    }).mask("99 99 999999");
+
+    $("#regnum").click(function(){
+    $(this).setCursorPosition(0);
+    }).mask("a999aa");
+
+    $("#regreg").click(function(){
+    $(this).setCursorPosition(0);
+    }).mask("999");
+
+    $("#stsnum").click(function(){
+    $(this).setCursorPosition(0);
+    }).mask("99aa999999");
+
+    $("#vin").click(function(){
+    $(this).setCursorPosition(0);
+    }).mask("*****************");
+
+    var $loading = $('#loadingDiv').hide();
+    $('#results').hide();
+    $('#res_message').hide();
+
+    $(document)
+        .ajaxStart(function () {
+            $('#results').hide();
+            $('#res_message').hide();
+            $loading.show();
+            $("#clearForm,#sendForm,#widget_groupButton_vin input").attr('disabled','disabled');
+        })
+        .ajaxStop(function () {
+            $loading.hide();
+            $("#clearForm,#sendForm,#widget_groupButton_vin input").removeAttr('disabled');
+    });
+
+    $('#alienFalse').append(`
+    <div id="regBlock">
+	    <input id="regnum" type="text" name="regnum" placeholder="А000АА" required>
+	    <input id="regreg" type="text" name="regreg" placeholder="777" required>
+    </div>
+	<input id="stsnum" type="text" name="stsnum" placeholder="99АА999999" required>
+    <input type="hidden" name="action" value="fines">
+    `);
+
+    $("#changeAlien").on("click", function(event){
+        if ($(this).text() == 'Иностранный госномер') {
+            $(this).text('Российский госномер');
+            $('#alienFalse').empty();
+            $('#alienTrue').append(`
+                <input id="regnumAlien" type="text" name="regnum" placeholder="ГОСНОМЕР" required>
+                <input type="hidden" name="action" value="fines">
+                <input type="hidden" name="alien" value="true">
+                `);
+        } else {
+            $(this).text('Иностранный госномер');
+            $('#alienTrue').empty();
+            $('#alienFalse').append(`
+                <div id="regBlock">
+	                <input id="regnum" type="text" name="regnum" placeholder="А000АА" required>
+	                <input id="regreg" type="text" name="regreg" placeholder="777" required>
+                </div>
+	            <input id="stsnum" type="text" name="stsnum" placeholder="99АА999999" required>
+                <input type="hidden" name="action" value="fines">
+                `);
+        }
+    });
+
+
+        $("#formAuto").on('submit', function(event){
+
+            event.preventDefault();
+            var action = $(event.originalEvent.submitter).attr('name');
+
+            $.ajax({
+                url: 'api.php',
+                method: 'post',
+                dataType: 'json',
+                data: $(this).serialize().replace(/%20/g, '') + '&action=' + action,
+                success: function(data){
+                    
+                $('#log').html(JSON.stringify(data));
+
+                if (data.code == 100) {
+                // $('#res_division').html(data.doc.division);
+                // $('#res_bdate').html(data.doc.bdate);
+                // $('#res_date').html(data.doc.date);
+                // $('#res_srok').html(data.doc.srok);
+                // $('#res_cat').html(data.doc.cat);
+                } else if (data.status == 200) {
+
+                    $('#results').empty().show();
+                    console.log('data.code == 200');
+                   
+
+                    if(action == "dtp") {
+                        console.log('Сработало событие ДТП');
+                        console.log(data.RequestResult.Accidents);
+                        
+                        if(data.RequestResult.Accidents.length !== 0) {
+                            $.each(data.RequestResult.Accidents, function( index, value ) {
+                                $('#results').append(`
+                                <div>Информация о происшествии <span>№ ${value.AccidentNumber}</span><br><br>
+                                Дата и время происшествия: <span>${value.AccidentDateTime}</span><br>
+                                Тип происшествия: <span>${value.AccidentType}</span><br>
+                                Регион происшествия: <span>${value.RegionName}</span><br>
+                                Место происшествия: <span>${value.AccidentPlace}</span><br>
+                                Марка (модель) ТС: <span>${value.VehicleModel}</span><br>
+                                Год выпуска ТС: <span>${value.VehicleYear}</span><br>
+                                ОПФ собственника: <span>${value.OwnerOkopf}</span><br>
+                                Номер ТС/из всего ТС в ДТП: <span>${value.VehicleSort}/${value.VehicleAmount}</span></div><br>
+                                `);
+                            });
+                        } else {
+
+                            $('#res_message').empty().show();
+                    
+                            console.log(action);
+                            console.log('data.status == 404');
+
+                            $('#res_message').text('В результате обработки запроса к АИУС ГИБДД записи о дорожно-транспортных происшествиях не найдены.');
+                            
+                        }
+                    } else if (action == "history") {
+                        console.log('Сработало событие ИСТОРИЯ');
+                        console.log(data.RequestResult);
+
+                        var vehicle = data.RequestResult.vehicle;
+                        var ownershipPeriod = data.RequestResult.ownershipPeriods.ownershipPeriod;
+                        var typeOwner = {
+                            "Natural": "Физическое лицо",
+                            "Legal": "Юридическое лицо",
+                        };
+			            var vehicleTypes = {
+			            	"01":"Грузовые автомобили бортовые",
+			            	"02":"Грузовые автомобили шасси",
+			            	"03":"Грузовые автомобили фургоны",
+			            	"04":"Грузовые автомобили тягачи седельные",
+			            	"05":"Грузовые автомобили самосвалы",
+			            	"06":"Грузовые автомобили рефрижераторы",
+			            	"07":"Грузовые автомобили цистерны",
+			            	"08":"Грузовые автомобили с гидроманипулятором",
+			            	"09":"Грузовые автомобили прочие",
+			            	"21":"Легковые автомобили универсал",
+			            	"22":"Легковые автомобили комби (хэтчбек)",
+			            	"23":"Легковые автомобили седан",
+			            	"24":"Легковые автомобили лимузин",
+			            	"25":"Легковые автомобили купе",
+			            	"26":"Легковые автомобили кабриолет",
+			            	"27":"Легковые автомобили фаэтон",
+			            	"28":"Легковые автомобили пикап",
+			            	"29":"Легковые автомобили прочие",
+			            	"41":"Автобусы длиной не более 5 м",
+			            	"42":"Автобусы длиной более 5 м, но не более 8 м",
+			            	"43":"Автобусы длиной более 8 м, но не более 12 м",
+			            	"44":"Автобусы сочлененные длиной более 12 м",
+			            	"49":"Автобусы прочие",
+			            	"51":"Специализированные автомобили автоцистерны",
+			            	"52":"Специализированные автомобили санитарные",
+			            	"53":"Специализированные автомобили автокраны",
+			            	"54":"Специализированные автомобили заправщики",
+			            	"55":"Специализированные автомобили мастерские",
+			            	"56":"Специализированные автомобили автопогрузчики",
+			            	"57":"Специализированные автомобили эвакуаторы",
+			            	"58":"Специализированные пассажирские транспортные средства",
+			            	"59":"Специализированные автомобили прочие",
+			            	"71":"Мотоциклы",
+			            	"72":"Мотороллеры и мотоколяски",
+			            	"73":"Мотовелосипеды и мопеды",
+			            	"74":"Мотонарты",
+			            	"80":"Прицепы самосвалы",
+			            	"81":"Прицепы к легковым автомобилям",
+			            	"82":"Прицепы общего назначения к грузовым автомобилям",
+			            	"83":"Прицепы цистерны",
+			            	"84":"Прицепы тракторные",
+			            	"85":"Прицепы вагоны-дома передвижные",
+			            	"86":"Прицепы со специализированными кузовами",
+			            	"87":"Прицепы трейлеры",
+			            	"88":"Прицепы автобуса",
+			            	"89":"Прицепы прочие",
+			            	"91":"Полуприцепы с бортовой платформой",
+			            	"92":"Полуприцепы самосвалы",
+			            	"93":"Полуприцепы фургоны",
+			            	"95":"Полуприцепы цистерны",
+			            	"99":"Полуприцепы прочие",
+			            	"31":"Трактора",
+			            	"32":"Самоходные машины и механизмы",
+			            	"33":"Трамваи",
+			            	"34":"Троллейбусы",
+			            	"35":"Велосипеды",
+			            	"36":"Гужевой транспорт",
+			            	"38":"Подвижной состав железных дорог",
+			            	"39":"Иной"
+			            };
+                        var typeOperation = {
+                            "01":"регистрация новых, произведенных в России или ввезенных, а также ввезенных в Россию бывших в эксплуатации, в том числе временно на срок более 6 месяцев, испытательной техники",
+                            "02":"регистрация ранее зарегистрированных в регистрирующих органах",
+                            "03":"изменение собственника (владельца) в результате совершения сделки, вступления в наследство, слияние и разделение капитала у юридического лица, переход права по договору лизинга, судебные решения и др.",
+                            "04":"изменение данных о собственнике (владельце)",
+                            "05":"изменение данных о транспортном средстве, в том числе изменение технических характеристик и (или) назначения (типа) транспортного средства",
+                            "06":"выдача взамен утраченных или пришедших в негодность государственных регистрационных знаков, регистрационных документов, паспортов транспортных средств.",
+                            "07":"прекращение регистрации в том числе",
+                            "08":"снятие с учета в связи с убытием за пределы Российской Федерации",
+                            "09":"снятие с учета в связи с утилизацией",
+                            "11":"первичная регистрация",
+                            "12":"регистрация снятых с учета",
+                            "13":"временная регистрация ТС (на срок проведения проверок, на срок временной прописки, регистрация испытательной техники)",
+                            "14":"временный учет (временная регистрация места пребывания ТС без выдачи документов)",
+                            "15":"регистрация ТС, ввезенных из-за пределов Российской Федерации",
+                            "16":"регистрация ТС, прибывших из других регионов Российской Федерации",
+                            "17":"регистрация ТС по новому месту жительства собственника, прибывшего из другого субъекта Российской Федерации, с одновременным снятием с учета по прежнему месту жительства",
+                            "18":"восстановление регистрации после аннулирования",
+                            "41":"замена государственного регистрационного знака",
+                            "42":"выдача дубликата регистрационного документа",
+                            "43":"выдача (замена) паспорта ТС",
+                            "44":"замена номерного агрегата, цвета, изменение конструкции ТС",
+                            "45":"изменение Ф.И.О. (наименования) владельца",
+                            "46":"изменение места жительства (юридического адреса) владельца в пределах территории обслуживания регистрационным пунктом",
+                            "47":"наличие запретов и ограничений",
+                            "48":"снятие запретов и ограничений",
+                            "49":"регистрация залога ТС",
+                            "50":"прекращение регистрации залога ТС",
+                            "51":"коррекция иных реквизитов",
+                            "52":"выдача акта технического осмотра",
+                            "53":"проведение ГТО",
+                            "54":"постоянная регистрация ТС по окончанию временной",
+                            "55":"коррекция реквизитов по информации налоговых органов",
+                            "56":"коррекция реквизитов при проведении ГТО",
+                            "61":"в связи с изменением места регистрации",
+                            "62":"в связи с прекращением права собственности (отчуждение, конфискация ТС)",
+                            "63":"в связи с вывозом ТС за пределы Российской Федерации",
+                            "64":"в связи с окончанием срока временной регистрации",
+                            "65":"в связи с утилизацией",
+                            "66":"в связи с признанием регистрации недействительной",
+                            "67":"снятие с временного учета",
+                            "68":"снятие с учета в связи с кражей или угоном",
+                            "69":"постановка с одновременным снятием с учета",
+                            "81":"документов в связи с обнаружением",
+                            "82":"удаление ошибочно введенной записи",
+                            "83":"удаление в связи со сверкой",
+                            "84":"перевод в архив в связи с корректировкой",
+                            "91":"по наследству с заменой государственных регистрационных знаков",
+                            "92":"по наследству с сохранением государственных регистрационных знаков за новым собственником (наследником)",
+                            "93":"по сделкам, произведенным в любой форме (купля-продажа, дарение, др.) с заменой государственных регистрационных знаков",
+                            "94":"по сделкам, произведенным в любой форме (купля-продажа, дарение, др.) с сохранением государственных регистрационных знаков за новым собственником"
+                        };
+
+                        $('#results').append(`
+                            <div>Марка и(или) модель: <span>${vehicle.model}</span><br>
+                            Год выпуска: <span>${vehicle.year}</span><br>
+                            Идентификационный номер (VIN): <span>${vehicle.vin}</span><br>
+                            Номер шасси (рамы): <span>-</span><br>
+                            Номер кузова (кабины): <span>${vehicle.bodyNumber}</span><br>
+                            Цвет кузова (кабины): <span>${vehicle.color}</span><br>
+                            Рабочий объем (см³): <span>${vehicle.engineVolume}</span><br>
+                            Мощность (кВт/л.с.): <span>${vehicle.powerKwt}/${vehicle.powerHp}</span><br>
+                            Тип транспортного средства: <span>${vehicleTypes[vehicle.type]}</span></div><br>
+                        `);
+
+
+                        $.each(ownershipPeriod, function( index, value ) {
+                            $('#results').append(`
+                            <div><span>Периоды владения транспортным средством</span><br><br>
+                            c <span>${value.from}</span> по <span>${value.to ?? 'настоящее время'}</span>: <span>${typeOwner[value.simplePersonType]}</span><br>
+                            ${typeOperation[value.lastOperation]}
+                            </div><br>
+                            `);
+                        });
+
+                } else if (action == "wanted") {
+
+                    $('#res_message').empty().show();
+
+                    var wantedRec = data.RequestResult.records;
+
+                    if (wantedRec.length !== 0) {
+                        $.each(wantedRec, function( index, value ) {
+                            $('#results').append(`
+                                ${index}
+                            `);
+                        });
+                    } else {
+                        $('#res_message').text('По указанному VIN не найдена информация о розыске транспортного средства.');
+                    }
+
+
+                    console.log('Сработало событие Розыск');
+
+                } else if (data.status == 404) {
+
+                    $('#res_message').empty().show();
+                    
+                    console.log(action);
+                    console.log('data.status == 404');
+
+                    $('#res_message').text('По указанному VIN не найдена информация о регистрации транспортного средства.');
+                
+                } else if (data.status == 201 || data.code == 201) {
+
+                    $('#res_message').empty().show();
+
+                    console.log(action);
+                    console.log('data.code == 201');
+
+                    $('#res_message').text('Проверка завершилась ошибкой на стороне сервера. Возможно, в настоящее время проводятся работы, рекомендуем повторить попытку позже.');
+                }
+                }
+                }
+            });
+
+        });
+            
+
+
+
+
+});
+
+</script>
+
+<style>
+/* --------------------------------------
+=========================================
+Проверить УВ водителя
+=========================================
+-----------------------------------------*/
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+-webkit-appearance: none;
+margin: 0;
+}
+input[type="number"] {
+-moz-appearance: textfield;
+}
+input[type="number"]:hover,
+input[type="number"]:focus {
+-moz-appearance: number-input;
+}
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+-webkit-appearance: none;
+margin: 0;
+}
+
+input#num,input#date, input#vin {
+border: 3px solid #121026;
+padding: 5px;
+font-size: 22px;
+height: 40px;
+width: 100%;
+font-weight: 600;
+color: #0001e6;
+text-align: center;
+margin-bottom: 20px;
+text-transform: uppercase;
+}
+input#sendForm,
+input#sendForm_history,
+input#sendForm_dtp,
+input#sendForm_wanted,
+input#sendForm_restrict,
+input#sendForm_diagnostic {
+background: #c70909;
+color: white;
+padding: 10px;
+border: none;
+font-size: 16px;
+font-weight: 400;
+}
+input#clearForm {
+background: #121026;;
+color: white;
+padding: 10px;
+border: none;
+font-size: 16px;
+font-weight: 400;
+}
+#widget_gibbd {
+margin-bottom: 50px;
+width: 99%;
+}
+#widget_groupButton {
+margin-top: 20px;
+display: flex;
+justify-content: space-between;
+}
+#widget_groupButton_vin {
+    margin-top: 20px;
+    /* flex-direction: column;
+    display: inline-flex; */
+}
+#widget_groupButton_vin input {
+    margin-top: 20px;
+}
+#loadingDiv {
+margin-top: 50px;
+text-align: center;
+}
+#results {
+margin-top: 50px;
+}
+#results div {
+font-size: 14px;
+margin: 10px 0px;
+background: #1210261f;
+padding: 10px 10px;
+text-transform: uppercase;
+font-weight: bold;
+color: black;
+}
+#results div span{
+color: #c70909;
+}
+#widget_groupButton input:disabled,#changeAlien:disabled,#widget_groupButton_vin input:disabled {
+background: gray!important;
+cursor: wait!important;
+}
+#res_message {
+margin-top: 50px;
+font-size: 14px;
+background: #1210261f;
+padding: 10px 10px;
+text-transform: uppercase;
+font-weight: bold;
+}
+.lds-ring {
+display: inline-block;
+position: relative;
+width: 50px;
+height: 50px;
+}
+.lds-ring div {
+box-sizing: border-box;
+display: block;
+position: absolute;
+width: 40px;
+height: 40px;
+margin: 10px;
+border: 5px solid #c70909;
+border-radius: 50%;
+animation: lds-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+border-color: #c70909 transparent transparent transparent;
+}
+.lds-ring div:nth-child(1) {
+animation-delay: -0.45s;
+}
+.lds-ring div:nth-child(2) {
+animation-delay: -0.3s;
+}
+.lds-ring div:nth-child(3) {
+animation-delay: -0.15s;
+}
+@keyframes lds-ring {
+0% {
+transform: rotate(0deg);
+}
+100% {
+transform: rotate(360deg);
+}
+}
+@media (max-width: 768px) {
+#widget_groupButton {
+flex-direction: column;
+}
+input#sendForm,
+input#clearForm {
+margin-top: 10px;
+}
+}
+
+/* --------------------------------------
+=========================================
+Проверить штрафы
+=========================================
+-----------------------------------------*/
+#widget_gibbd #regnum{
+border-radius: 6px 0 0 6px;
+border-top: 3px solid #000;
+border-bottom: 3px solid #000;
+border-left: 3px solid #000;
+border-right: 1px solid #000;
+background-color: #f5f5f5;
+width: 200px;
+height: 70px;
+text-align: center;
+font-size: 30px;
+font-weight: 600;
+text-transform: uppercase;
+}
+#widget_gibbd #regreg{
+border-radius: 0 6px 6px 0;
+border-top: 3px solid #000;
+border-bottom: 3px solid #000;
+border-right: 3px solid #000;
+border-left: 1px solid #000;
+width: 100px;
+height: 70px;
+text-align: center;
+font-size: 30px;
+font-weight: 600;
+background: #f5f5f5 url(/rus.png);
+background-repeat: no-repeat;
+background-position: bottom;
+}
+#widget_gibbd #regBlock {
+display: flex;
+justify-content: center;
+}
+#widget_gibbd #stsnum {
+width: 300px;
+margin-top: 20px;
+border: none;
+height: 70px;
+text-align: center;
+font-size: 30px;
+font-weight: 700;
+text-transform: uppercase;
+background: url(/sts-bottom.jpg);
+}
+
+#widget_gibbd #changeAlien {
+background: #121026;
+color: white;
+padding: 10px;
+border: none;
+font-size: 16px;
+font-weight: 400;
+cursor: pointer;
+}
+
+#widget_gibbd #regnumAlien {
+border-radius: 6px;
+border-top: 3px solid #000;
+border-bottom: 3px solid #000;
+border-left: 3px solid #000;
+border-right: 3px solid #000;
+background-color: #f5f5f5;
+width: 246px;
+height: 60px;
+text-align: center;
+font-size: 30px;
+font-weight: 900;
+text-transform: uppercase;
+}
+
+#widget_gibbd #alienTrue,
+#widget_gibbd #alienFalse {
+text-align: center;
+}
+/* --------------------------------------
+=========================================
+Проверить автомобиль
+=========================================
+-----------------------------------------*/
+
+</style>
+
+</body>
+</html>
